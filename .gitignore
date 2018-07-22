@@ -1,6 +1,7 @@
 # Created by https://www.gitignore.io/api/python,visualstudiocode
 input/
 output/
+*.csv
 
 ### Python ###
 # Byte-compiled / optimized / DLL files

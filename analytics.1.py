@@ -1,23 +1,21 @@
 import datetime
 
-import numpy as np
 import pandas as pd
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import make_union
 
 if __name__ == "__main__" :
-	class_names = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
+	target_classes = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
 
-	train = pd.read_csv('./input/train.csv').fillna(' ')
-	test = pd.read_csv('./input/test.csv').fillna(' ')
+	train_data = pd.read_csv('./input/train.csv').fillna(' ')
+	test_data = pd.read_csv('./input/test.csv').fillna(' ')
 
-	train_text = train['comment_text']
-	test_text = test['comment_text']
+	train_text = train_data['comment_text']
+	test_text = test_data['comment_text']
 
-	word_vectorizer = TfidfVectorizer(
+	one_word_vectorizer = TfidfVectorizer(
 		sublinear_tf=True,
 		strip_accents='unicode',
 		analyzer='word',
@@ -38,26 +36,20 @@ if __name__ == "__main__" :
 		ngram_range=(1, 4),
 		max_features=30000)
 
-	print('Start TS: ' + str(datetime.datetime.now()))
-	vectorizer = make_union(word_vectorizer, two_word_vectorizer, char_vectorizer, n_jobs=3)
+	print('Start: {}'.format(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+	combined_vectorizer = make_union(one_word_vectorizer, two_word_vectorizer, char_vectorizer, n_jobs=3)
 
-	vectorizer.fit(train_text)
-	train_features = vectorizer.transform(train_text)
-	test_features = vectorizer.transform(test_text)
+	combined_vectorizer.fit(train_text)
+	train_features = combined_vectorizer.transform(train_text)
+	test_features = combined_vectorizer.transform(test_text)
 
-	scores = []
-	submission = pd.DataFrame.from_dict({'id': test['id']})
-	for class_name in class_names:
-		train_target = train[class_name]
-		classifier = LogisticRegression(solver='sag')
-		cv_score = np.mean(cross_val_score(classifier, train_features, train_target, cv=3, scoring='roc_auc'))
-		scores.append(cv_score)
-		print('CV score for class {} is {}'.format(class_name, cv_score))
+	submission = pd.DataFrame.from_dict({'id': test_data['id']})
+	for target_class in target_classes:
+		train_target = train_data[target_class]
+		logit_classifier = LogisticRegression(solver='sag')
+		print('Predicting {}: {}'.format(target_class, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+		logit_classifier.fit(train_features, train_target)
+		submission[target_class] = logit_classifier.predict_proba(test_features)[:, 1]
 
-		print('Predicting: ' + class_name + ' ' + str(datetime.datetime.now()))
-		classifier.fit(train_features, train_target)
-		submission[class_name] = classifier.predict_proba(test_features)[:, 1]
-
-	submission.to_csv('./output/submission_' + datetime.datetime.now().strftime('%Y%m%d%H%M') + '.csv', index=False)
-	print('Total CV score is {}'.format(np.mean(scores)))
-	print('End TS: ' + str(datetime.datetime.now()))
+	submission.to_csv('./output/submission_{}.csv'.format(datetime.datetime.now().strftime('%Y%m%d%H%M')), index=False)
+	print('End: {}'.format(str(datetime.datetime.now())))
